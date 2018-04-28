@@ -1,0 +1,15 @@
+\documentclass[base.tex]{subfiles}
+\begin{document}
+\section{Problems encountered and lesson learnt}
+\subsection{Spark configuration for distributed system}
+We need to configure some property when we configure the environment. One of the property is IP address. It can be used for binding the port and addressing. We need to configure these addresses for different property. At first, we use public IP address to configure all of them. Because we configure the geo-distributed system, we thought we could not use the private IP address. But it does not work. We find that we need private IP address to bind the port. In the end, we find the solution. As for hdfs, we can configure it only once. But it need to be used for both addressing and binding port. So we configure it by using public DNS address. Fortunately, there are two configuration files for spark driver. We can configure the addresses respectively. As for master, we need to modify the script in Spark. As for workers, we do not use start-all. Instead of it, we start the workers one by one. We can configure the host address by using public DNS address.  
+
+Sometimes, we can not find datanode when we use jps command. We notice that when a datanode which is not empty joins the distributed system, namenode can not deal with it. We need to format the datanode.
+
+\subsection{Execute the program}
+Because of big data, we often meet the situation many times that we do not allocate enough memory for VM. So we shut down the VM and allocate more memory.
+
+\subsection{lesson learnt}
+During the process of doing project, we apply the theories we learn in the class to the practice. We knew more knowledge about Spark and distribute system. Although sometimes we met challenge, we enjoyed the process of finding solutions for problems.
+
+\end{document}

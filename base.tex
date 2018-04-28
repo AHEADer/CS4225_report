@@ -1,0 +1,55 @@
+\documentclass[11pt]{article}   % list options between brackets
+\usepackage[a4paper, margin=1.2in, top=0.8in, bottom=1in]{geometry}
+\usepackage{setspace} % list packages between braces
+\onehalfspacing
+\usepackage[flushleft]{threeparttable}
+\usepackage{amsmath,amsfonts,amsthm} % Math packages
+\usepackage[pdftex]{graphicx}	
+\usepackage{url}
+\usepackage{lmodern}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{amsmath}
+\DeclarePairedDelimiter\ceil{\lceil}{\rceil}
+\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
+\usepackage{amsmath, array, makecell}
+\usepackage{cellspace} %
+\setlength\cellspacetoplimit{4pt}
+\setlength\cellspacebottomlimit{4pt}
+\usepackage{algorithmic,algorithm}
+\onehalfspacing
+\makeatletter
+\newcommand*{\rom}[1]{\expandafter\@slowromancap\romannumeral #1@}
+\makeatother
+%\newcommand\ceil[1]{\lceil#1\rceil}
+\usepackage{subfiles}
+\usepackage{upgreek}
+\usepackage{multirow}
+
+
+\begin{document}
+
+\title{\textbf{Low Latency Geo-Distributed Data Analytics Framework Based on Heterogeneous Network}}
+\author{Qingyuan Wang, Yitan Li, Junda Zhang}
+\date{April 2018}    % type date between braces
+\maketitle
+
+
+%\begin{abstract}
+%\subfile{abstract}
+%\end{abstract}
+
+\subfile{introduction}
+\subfile{methodology}
+\subfile{discussion}
+\subfile{problems}
+\subfile{contribution}
+\subfile{summary}
+
+\newpage
+\bibliographystyle{IEEEtran}
+\bibliography{bibliography}
+
+
+% that's all folks
+\end{document}

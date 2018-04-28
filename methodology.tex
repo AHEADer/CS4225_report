@@ -1,0 +1,196 @@
+\documentclass[base.tex]{subfiles}
+\begin{document}
+\section{Methodology and experimentation}
+\subsection{Overview}
+\iffalse
+@@@@ We don't know how to deal with indent
+\fi
+We consider the geo-distributed data processing framework to logically span all the sites. The sites are inter-connected by WAN. We abstract the WAN as a logical full mesh, namely pair-wise connectivity between sites. On popular cloud platforms (e.g., Amazon EC2 and Google Could), inter-datacenter wide-area networks are provided as a shared service, where user-generated flows will compete with millions of other flows. As a result, each inter-datacenter TCP flow will get a fair share of the link capacity~\cite{chen2018scheduling}. \iffalse Our measurement with iperf3 on EC2 verifies this assumption.\fi Additionally, there could be significant heterogeneity in the WAN bandwidths due to widely different link capacities and other traffic sharing the links. Different sites have different number of processing units and processing units in different sites have different compute throughput. Finally, We assume the sites have relatively abundant storage capacity.
+
+Data can be generated and stored on any site and as such, a dataset (such as ``user activity log for application X'') could be distributed across many sites. To facilitate parallel processing, dataset is divided into \textit{partitions}. So, in geo-distributed environment, different partitions of one dataset could be distributed cross many sites.
+
+For a geo-distributed data processing job, a logically centralized \textit{driver} converts the user's script into a DAG, where vertices represent \textit{stages} and the directed edges represent the \textit{dependency of stages}. A stage is a physical unit of execution. And it has a set of parallel \textit{tasks}. The same task is done over different partitions of data. The number of tasks within each stage is determined based on the size of the input data and configuration settings of the program. And stages are separated at shuffle boundaries. Shuffle boundaries introduce a barrier where stages/tasks must wait for the previous stage to finish before they fetch intermediate data. Shuffle is where ``all-to-all'' shuffle occurs. And data transfer across sites occurs mainly when one stage shuffle read intermediate data from previous stage.
+
+In a geo-distributed setup, the main aspect dictating completion time of data processing job is efficient transfer of intermediate data that necessarily has to go across sites (e.g., all-to-all communication patterns) and balanced processing workload among workers.
+
+\subsection{Model}
+
+\begin{table}[htbp]
+\centering
+\resizebox{\textwidth}{!} {
+    \begin{tabular}{ S{m{1.5cm}} Sl}%{m{0cm}}
+        \hline
+        \textbf{Symbol} & \textbf{Meaning} \\
+        \hline
+\iffalse
+@@@@ symbol order is: hardware, application DAG, application input and stages, task placement and model result
+@@@@ We don't think that the definitions are clear
+\fi
+$D$ & the set of sites \\
+$B_{kj}$ & WAN bandwidth from site $i$ to site $j$ \\
+$U_{j}$ & number of processing units on site $j$ \\
+$C_{j}$ & throughput of each processing unit on site $j$ \\
+\hline
+$G$ & the DAG of stages \\
+$V$ & a set of vertices, each one corresponds to a stage in the job \\
+$E$ & a set of directed edges, each one corresponds to a dependency \\
+$P_{v}$ & a set of parent stages of stage $v$ \\
+$N_{v}$ & the set of tasks in stage $v$ \\
+$A_{v}$ & the set of data sources in stage $v$ \\
+\hline
+$We_{vija}$ & for task $i$ in stage $v$, size of input data of source $ a $ on site $j$ \\
+$S_{vi}$ & for task $i$ in stage $v$, size of input data \\
+\hline
+$x_{vij}$ & $x_{vij}$ = 1 indicates the assignment of task $i$ in stage $v$ to site $j$; otherwise $x_{vij}$ = 0 \\
+$M_{vj}$ & for stage $v$, number of tasks assigned to site $j$ \\
+\hline
+$T$ & job completion time \\
+$t_{v}$ & end time of stage $v$ \\
+$\uptau_{vj}$ & for stage $v$, the total task execution time in site $j$ \\
+$\tau_{vij}$ & task execution time of task $i$ assigned to site $j$ in stage $v$ \\
+\hline
+  \end{tabular}
+  }
+\end{table}
+
+For a given job, it can be represented a DAG as follows:
+\begin{equation}
+\label{eq:DAG}
+	G = (V, E)
+\end{equation}
+where a vertex $v$ denotes a stage $v$ in the job. A directed edge ($u$, $v$) means stage $u$ has dependency on stage $v$. And $v_{0}$ is the final stage.
+
+The set of parent stages of stage $v$, namely set of child vertices of vertex $v$ is 
+\begin{equation}
+\label{eq:set of parents}
+	P(v) = \{u|(v, u)\in E\}, \forall v \in V
+\end{equation}
+
+First, We represent the job completion time, T, as the sum of the end time of final stage plus the job startup time and the job cleanup time as follows: 
+\begin{equation}
+\label{eq:job completion time}
+	T = Startup + t_{v_{0}} + Cleanup, \forall v \in V
+\end{equation}
+
+Next, each stage can not start until all the parent stages of it have completed. And each stage contains multiple tasks. Tasks assigned to different sites can be executed in parallel and the stage execution time is determined by the slowest task execution time among all the sites. We denote the set of sites by $D$ = \{1...$d$\}. Therefore, the end time of a particular stage $v$ can be calculated as the maximum of tasks execution time among all the sites plus the stage startup time, the stage cleanup time and time of waiting for parent stages as follows:
+\begin{equation}
+\label{eq:stage end time}
+	t_{v} = \max_{u \in P(v)}t_{u} + Startup + \max_{j \in D}\uptau_{j} + Cleanup, \forall v \in V
+\end{equation}
+
+Task placement constraints: We denote the set of tasks in a stage by $ N_{v} $ = \{1...$n$\}. So, the number of tasks is $n$. $x_{vij}$ denotes whether $i$-th task in stage $v$ will be assigned to the $j$-th data center. $x_{vij}$ = 1 indicates the assignment of the $i$-th task to $j$-th data center; otherwise $x_{vij}$ = 0.
+\begin{equation}
+\label{eq:Percentages Sum}
+	\sum_{j=1}^{d}x_{vij} = 1, \forall v \in V, \forall i \in N
+\end{equation}
+\begin{equation}
+\label{eq:binary}
+	x_{vij} \in \{0, 1\}, \forall v \in V, \forall i \in N, \forall j \in D
+\end{equation}
+
+Therefore, the number of tasks assigned to site $j$ is
+\begin{equation}
+\label{eq:the number of tasks assigned to one site in certain stage}
+	M_{vj} = \displaystyle \sum_{i=1}^n x_{vij}, \forall v \in V,\forall j \in D
+\end{equation}
+
+Then, tasks executed in one site from one stage are independent. However, one processing unit (one CPU core, by default) executes one task at a time. So the number of processing units is the number of tasks can be executed in parallel in one site. If the number of tasks in stage $v$ assigned to site $v$, $M_{vj}$, is not more than the number of processing units in this site, $U_{j}$, the total task execution time of site $j$ is
+\begin{equation}
+\label{eq:total task execution time if tasks are fewer}
+	\uptau^{}_{vj} = \max_{i \in N}\{x_{vij}\cdot\tau_{vij}\}, \forall v \in V_{n}, \forall j \in D, M_{vj}\le U_{j}
+\end{equation}
+
+If the number of tasks in stage $v$ assigned to site $j$, $M_{vj}$, exceeds the number of processing units in this site, $U_{j}$, the total task execution time of site $j$ is
+\begin{equation}
+\label{eq:total task execution time if tasks are more than processing units}
+	\uptau^{}_{vj} = \frac{\displaystyle \sum_{i = 1}^N\{x_{vij}\cdot\tau_{vij}\}}{U_{j}}, \forall v \in V_{n}, \forall j \in D, M_{vj}>U_{j}
+\end{equation}
+
+Finally, We denote the set of data sources in a stage by $ A_{v} $ = \{1...$a$\}. So, the number of sources is $a$. For task $i$ in stage $v$, size of input data is
+\begin{equation}
+\label{eq:the size of intermediate data aggregated to one site in certain stage}
+	S_{vi} = \displaystyle \sum_{k=1}^d \sum_{b=1}^a I_{vikb}, \forall v \in V,\forall i \in N
+\end{equation}
+where $I_{vikb}$ is the size of input data of source $b$ from site $k$.
+
+A task can be broken up as scheduler delay + task deserialization time + shuffle read time (optional) + executor computing time + shuffle write time (optional) + result serialization time + getting result time (optional). \iffalse In data processing experiments in a geo-distributed environment, We observe that shuffle read time and the sum of executor computing time, shuffle write time, result serialization time and getting result time take up most (more than 95\%) time in the execution time of most tasks and executor compute can not start until shuffle read finishes.\fi We compute them if task $i$ is assigned on site $j$ in equation \ref{eq:task execution time}. Shuffle read time is the time to fetch data from all the sites containing input data, which is determined by slowest data transfer among all the input sites. The sum of executor computing time, shuffle write time, result serialization time and getting result time is determined by total input data size and throughput of processing unit. Other parts can be regarded as a constant. Since each part can not start until preceding part ends, task execution time can be modelled as follows:
+\begin{equation}
+\label{eq:task execution time}
+	\tau^{}_{vij} = Startup + \max_{k \in D}\left \{\sum_{b=1}^A\frac{I_{vikb}}{B_{kj}}\right \} + \frac{S_{vi}}{C_{j}}, \forall v \in V_{n}, \forall i \in N, \forall j \in D
+\end{equation}
+where the WAN bandwidth from site $k$ to $j$, $ B_{kj} $, can be measured and is stable for a few minutes~\cite{pu2015low}. And $ C_{j} $ is throughput of each processing unit on site $j$ is different in terms of many factors, such as memory size, application and so on.
+
+Given the model, the task placement problem can be formulated as:
+\begin{equation*}
+\begin{array}{ll@{}}
+\text{minimize}  & T \\
+\text{subject to}& (\ref{eq:DAG}),(\ref{eq:set of parents}),(\ref{eq:job completion time}),(\ref{eq:Percentages Sum}),(\ref{eq:binary}),(\ref{eq:the number of tasks assigned to one site in certain stage}),(\ref{eq:total task execution time if tasks are fewer}),(\ref{eq:total task execution time if tasks are more than processing units}),(\ref{eq:the size of intermediate data aggregated to one site in certain stage}),(\ref{eq:task execution time}).
+\end{array}
+\end{equation*}
+
+This formulation is not a linear program and not efficient to compute the optimum task placement. So We just use a brute force way to figure out the optimum result and do analysis.
+
+
+\subsection{Evaluation}
+In this section, We evaluate the accuracy of the model using a set of applications and a Spark cluster across sites in different regions. Then, by performing analysis of job profiles and application completion times, We reveal factors that impact the Spark job performance in a geo-distributed environment.
+\subsubsection{Experimental Setup}
+
+We first describe the testbed We used in my experiments, and then briefly introduce the applications, baselines, and metrics used throughout the evaluations.
+\begin{table}[htbp]
+\centering
+\caption{Available bandwidths between VMs across geodistributed data centers on EC2 as of April. 2018 (Mbps)}
+\label{Table of bandwidth}
+\begin{tabular}{|l|l|l|l|l|}
+\hline
+bandwidth & Oregon & Sao Paulo & Frankfurt & Singapore \\ \hline
+Oregon    & -      & 15.5 & 17.7      & 17.7      \\ \hline
+Sao Paulo & 16.2   & -    & 14.3      & 8.38      \\ \hline
+Frankfurt & 18.4   & 13.6 & -         & 17.7      \\ \hline
+Singapore & 18.4   & 7.92 & 17.4      & -         \\ \hline
+\end{tabular}
+\end{table}
+
+\textbf{Testbed}: We conduct experiments on Spark in standalone mode using EC2. My cluster on Amazon EC2 consists of instances across four regions (Oregon, Sao Paulo, Frankfurt and Singapore), two instances per region. All the instances are m4.large and each instance has two vCPUs, 8 GB of main memory and 60 GB of general purpose SSD (GP2). The bandwidths between VMs across regions can be found in Table \ref{Table of bandwidth}.
+
+The distributed file system is the Hadoop Distributed File System (HDFS). The block size in HDFS is 128MB, and the number of replications is 1. We use one instance in Oregon as the master node for both HDFS and Spark. All the other nodes are served as data nodes and worker nodes.
+
+\textbf{Workloads}: We deploy WordCount on Spark. It is common workloads used in previous work.
+WordCount: WordCount calculates the frequency of every single word appearing in a single file or a batch of files. It would first calculate the frequency of words in each partition, and then aggregate the results in the previous step to get the result. We choose WordCount because it is a fundamental application in distributed data processing and it can be used to process the real-world data traces such as Wikipedia dump.
+%PageRank: It computes the weights for websites based on the amount and quality of links that point to the websites. This method relies on the assumption that a website is important if many other important websites are linking to it. It is a typical data processing application with multiple iterations. I use it for calculating the ranks for the websites.
+
+\textbf{Baselines}: We compare my optimal task placement to four baselines: 
+\begin{enumerate}
+  %\item leave data ``in-place'' and use stock Spark's scheduling, delay scheduling.
+  \item ``centralized'' aggregation of data at a main DC.
+  \item place tasks equally among all the sites.
+  \item balance the transfer times among the WAN links stage by stage, without considering processing time, which is similar to strategy adopted in ~\cite{hu2016flutter}.
+  \item balance the processing times among all the sites, without considering data transfer time stage by stage, which is similar to strategy adopted in most cluster processing framework.
+\end{enumerate}
+
+\textbf{Metrics}: My primary metric is job completion time and stage completion time. \iffalse As the bandwidths of WAN among different datacenters are expensive in terms of cost, so We also take the amount of traffic transferred among different datacenters as another metric, although it is not my main objective. Moreover, We also report the running times of solving the task placement problem in different scales to show the scalability of my approach.\fi
+
+\subsubsection{Validation}
+% @@@@ How do We get all the parameters
+To evaluate the accuracy of my analytical model, first, We collect all the parameters in my model from the web UI that are generated by  the Apache Spark platform to record execution profiles and performance metrics that are directly obtained from the Spark event listeners in the Apache Spark program. Then, We do more experiments using different input data in real world and compare the model output with real system output. We calculate the prediction accuracy for each stage and the whole job as well.
+
+% Please add the following required packages to your document preamble:
+% \usepackage{multirow}
+\begin{table}[htbp]
+\centering
+\caption{Validation of Model: Comparison With Real System Data}
+\label{tbl: Validation}
+\begin{tabular}{|c|l|c|c|c|}
+\hline
+Number of sites    & Measurements        & Map stage & Reduce stage & Whole job \\ \hline
+\multirow{3}{*}{2} & real world time (s) & 114       & 21           & 140       \\ \cline{2-5} 
+                   & model output (s)    & 135.4     & 19.9         & 161       \\ \cline{2-5} 
+                   & accuracy            & 81.2\%    & 94.8\%       & 85.0\%    \\ \hline
+\multirow{3}{*}{3} & real world time (s) & 166       & 60           & 231       \\ \cline{2-5} 
+                   & model output (s)    & 167.5     & 60.3         & 233.8     \\ \cline{2-5} 
+                   & accuracy            & 99.1\%    & 99.5\%       & 98.8\%    \\ \hline
+\end{tabular}
+\end{table}
+
+Table \ref{tbl: Validation} show the accuracy for time prediction for different experiment setup. As can be seen in the figure, sometimes the model achieves great prediction accuracy but not all the time. This may be due to the fact that the same applications and same setup can result in varying stage completion time and job completion time, which is observed in experiments.
+
+\end{document}

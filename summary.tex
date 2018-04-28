@@ -1,0 +1,10 @@
+\documentclass[base.tex]{subfiles}
+\begin{document}
+\section{Project summary}
+In this work, we develop an analytical modeling approach to determine the total completion time for a single job on a geo-distributed clusters. We validate the accuracy of the proposed model on a geo-distributed Apache Spark cluster spanning multiple Amazon AWS cloud regions. Additionally, we simulate jobs using the model, explore and discuss factors that impact the job performance in geo-distributed data processing.
+
+We consider the problem of running data processing jobs over data gathered and stored at multiple sites inter-connected by heterogeneous WAN links. We have focused on the design and evaluation of an analytical model for predicting job completion time in geo-distributed environments. We have assessed the accuracy of the model using word count application. The accuracy of predicted completion time is above 80\% of the measured ones in a real cluster.
+
+In simulation experiments, We have evaluated some factors that impact the job performance in geo-distributed data processing. We found that when the amount of data increases according to the number of sites, the time of data processing increases sublinearly. And a good task placement strategy can improve the performance of geo-distributed data processing. However, the improvement of time efficiency is limited if the task placement strategy doesn't take either task processing time or data transfer time into consideration.
+
+\end{document}
